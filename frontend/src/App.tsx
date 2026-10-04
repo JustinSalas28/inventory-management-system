@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, Route, Routes } from 'react-router-dom'
+import { Link, Route, Routes, useNavigate } from 'react-router-dom'
 import './App.css'
 import logo from './assets/short_cloud_inventory_logo.png'
 import warehouseImage from './assets/dark_warehouse.jpg'
@@ -55,13 +55,39 @@ function SignInPage() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
 
-    function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    const navigate = useNavigate()
+
+    async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
 
-        console.log({
-            email,
-            password
-        })
+        try {
+            const response = await fetch('http://127.0.0.1:8000/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    email,
+                    password
+                })
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                alert(data.detail)
+                return
+            }
+
+            localStorage.setItem('access_token', data.access_token)
+
+            alert(data.message)
+            navigate('/dashboard')
+
+        } catch (error) {
+            console.error('Login failed:', error)
+            alert('Unable to connect to the server')
+        }
     }
 
     return (
@@ -122,7 +148,11 @@ function SignUpPage() {
 
             const data = await response.json()
 
-            console.log(data)
+            if (!response.ok) {
+                alert(data.detail)
+                return
+            }
+
             alert(data.message)
         } catch (error) {
             console.error('Registration failed:', error)
@@ -177,7 +207,54 @@ function SignUpPage() {
 }
 
 function DashboardPage() {
-    return <h2>Inventory Dashboard</h2>
+    const [userName, setUserName] = useState('')
+    const navigate = useNavigate()
+
+    function handleLogout() {
+        localStorage.removeItem('access_token')
+        navigate('/sign-in')
+    }
+
+    useEffect(() => {
+        const token = localStorage.getItem('access_token')
+
+        if (!token) {
+            navigate('/sign-in')
+            return
+        }
+
+        fetch('http://127.0.0.1:8000/me', {
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    localStorage.removeItem('access_token')
+                    navigate('/sign-in')
+                    return
+                }
+
+                const data = await response.json()
+                setUserName(data.name)
+            })
+            .catch((error) => {
+                console.error('Authentication check failed:', error)
+            })
+    }, [navigate])
+
+
+
+    return (
+        <main>
+            <h2>Inventory Dashboard</h2>
+            <p>Welcome, {userName}</p>
+
+            <button onClick={handleLogout}>
+                Log Out
+            </button>
+        </main>
+    )
 }
 
 function App() {
